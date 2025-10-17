@@ -1,248 +1,210 @@
 <?php
-class Appointment {
-    private $conn;
-    private $table = 'appointments';
-    public $id;
-    public $user_id;
-    public $patient_id;
-    public $appointment_date;
-    public $appointment_time;
-    public $duration;
-    public $amount;
-    public $notes;
-    public $status;
-    public $created_at;
-    public $updated_at;
+session_start();
+header('Content-Type: application/json');
 
-    public $last_error = null;
+require_once '../config/dev.php';
 
-    public function __construct($db) {
-        $this->conn = $db;
-    }
+error_log("===============================================");
+error_log("🔍 [APPOINTMENTS] Método: " . $_SERVER['REQUEST_METHOD']);
+error_log("🔍 [APPOINTMENTS] Query String: " . ($_SERVER['QUERY_STRING'] ?? 'vazio'));
 
-    public function create() {
-        // Check if amount column exists
-        $columnCheck = "SHOW COLUMNS FROM " . $this->table . " LIKE 'amount'";
-        $checkStmt = $this->conn->prepare($columnCheck);
-        $checkStmt->execute();
-        $hasAmountColumn = $checkStmt->rowCount() > 0;
-        
-        if ($hasAmountColumn) {
-            $query = "INSERT INTO " . $this->table . "
-                (user_id, patient_id, appointment_date, appointment_time, duration, amount, notes, status)
-                VALUES (:user_id, :patient_id, :appointment_date, :appointment_time, :duration, :amount, :notes, :status)";
+if (!isAuthenticated()) {
+    error_log("❌ [APPOINTMENTS] Não autorizado");
+    http_response_code(401);
+    echo json_encode(['error' => 'Não autorizado']);
+    exit;
+}
+
+require_once '../config/database.php';
+require_once '../classes/Appointment.php';
+
+$database = new Database();
+$db = $database->connect();
+$appointment = new Appointment($db);
+$method = $_SERVER['REQUEST_METHOD'];
+$user_id = getCurrentUserId();
+
+error_log("✅ [APPOINTMENTS] User ID: $user_id");
+
+switch($method) {
+    case 'GET':
+        if (isset($_GET['id'])) {
+            $appointment_id = $_GET['id'];
+            error_log("🔍 [APPOINTMENTS GET] ID: $appointment_id");
+            
+            if ($appointment->readOne($appointment_id, $user_id)) {
+                echo json_encode([
+                    'id' => $appointment->id,
+                    'patient_id' => $appointment->patient_id,
+                    'appointment_date' => $appointment->appointment_date,
+                    'appointment_time' => $appointment->appointment_time,
+                    'duration' => $appointment->duration,
+                    'amount' => $appointment->amount,
+                    'notes' => $appointment->notes,
+                    'status' => $appointment->status
+                ]);
+            } else {
+                error_log("❌ [APPOINTMENTS GET] Não encontrado");
+                http_response_code(404);
+                echo json_encode(['error' => 'Consulta não encontrada']);
+            }
+        } else if (isset($_GET['date'])) {
+            $date = $_GET['date'];
+            error_log("🔍 [APPOINTMENTS GET] Data: $date");
+            
+            $stmt = $appointment->readByDate($user_id, $date);
+            $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            error_log("✅ [APPOINTMENTS GET] " . count($appointments) . " consultas");
+            echo json_encode($appointments);
+        } else if (isset($_GET['upcoming'])) {
+            $limit = (int)$_GET['upcoming'];
+            $stmt = $appointment->getUpcoming($user_id, $limit);
+            $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($appointments);
+        } else if (isset($_GET['stats'])) {
+            $stats = $appointment->getStats($user_id);
+            echo json_encode($stats);
         } else {
-            $query = "INSERT INTO " . $this->table . "
-                (user_id, patient_id, appointment_date, appointment_time, duration, notes, status)
-                VALUES (:user_id, :patient_id, :appointment_date, :appointment_time, :duration, :notes, :status)";
+            $stmt = $appointment->read($user_id);
+            $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($appointments);
         }
-        
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':user_id', $this->user_id);
-        $stmt->bindParam(':patient_id', $this->patient_id);
-        $stmt->bindParam(':appointment_date', $this->appointment_date);
-        $stmt->bindParam(':appointment_time', $this->appointment_time);
-        $stmt->bindParam(':duration', $this->duration);
-        if ($hasAmountColumn) {
-            $stmt->bindParam(':amount', $this->amount);
-        }
-        $stmt->bindParam(':notes', $this->notes);
-        $stmt->bindParam(':status', $this->status);
+        break;
 
-        if ($stmt->execute()) {
-            $this->last_error = null;
-            return true;
+    case 'POST':
+        error_log("🔵 [APPOINTMENTS POST] Criando");
+        
+        $data = json_decode(file_get_contents("php://input"));
+
+        if (!$data) {
+            error_log("❌ [APPOINTMENTS POST] JSON inválido");
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Dados inválidos']);
+            break;
+        }
+
+        error_log("📝 Dados: " . json_encode($data));
+
+        $appointment->user_id = $user_id;
+        $appointment->patient_id = $data->patient_id ?? '';
+        $appointment->appointment_date = $data->appointment_date ?? '';
+        $appointment->appointment_time = $data->appointment_time ?? '';
+        $appointment->duration = $data->duration ?? 50;
+        $appointment->amount = $data->amount ?? 0;
+        $appointment->notes = $data->notes ?? '';
+        $appointment->status = 'scheduled';
+
+        if (empty($appointment->patient_id) || empty($appointment->appointment_date) || empty($appointment->appointment_time)) {
+            error_log("❌ [APPOINTMENTS POST] Campos obrigatórios faltando");
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Campos obrigatórios faltando']);
+            break;
+        }
+
+        if ($appointment->create()) {
+            error_log("✅ [APPOINTMENTS POST] Criada");
+            error_log("===============================================");
+            echo json_encode(['success' => true, 'message' => 'Consulta agendada com sucesso']);
         } else {
-            $errorInfo = $stmt->errorInfo();
-            $this->last_error = [
-                'sqlstate' => $errorInfo[0],
-                'driver_code' => $errorInfo[1],
-                'message' => $errorInfo[2],
-                'full_message' => "SQLSTATE[{$errorInfo[0]}]: {$errorInfo[2]}"
-            ];
-            return false;
+            error_log("❌ [APPOINTMENTS POST] Falhou");
+            error_log("===============================================");
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erro ao criar consulta']);
         }
-    }
+        break;
 
-    public function getLastError() {
-        return $this->last_error;
-    }
-
-    public function getStats($user_id) {
-        // First check if amount column exists
-        $columnCheck = "SHOW COLUMNS FROM " . $this->table . " LIKE 'amount'";
-        $checkStmt = $this->conn->prepare($columnCheck);
-        $checkStmt->execute();
-        $hasAmountColumn = $checkStmt->rowCount() > 0;
+    case 'PUT':
+        error_log("🔵 [APPOINTMENTS PUT] Atualizando");
         
-        $amountField = $hasAmountColumn ? "amount" : "0";
-        
-        $query = "
-            SELECT 
-                COUNT(*) as total_appointments,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as total_completed,
-                SUM(CASE WHEN DATE(appointment_date) = CURDATE() THEN 1 ELSE 0 END) as today_appointments,
-                SUM(CASE WHEN YEARWEEK(appointment_date, 1) = YEARWEEK(CURDATE(), 1) THEN 1 ELSE 0 END) as weekly_appointments,
-                SUM(CASE WHEN MONTH(appointment_date) = MONTH(CURDATE()) AND YEAR(appointment_date) = YEAR(CURDATE()) THEN " . $amountField . " ELSE 0 END) as monthly_revenue
-            FROM " . $this->table . "
-            WHERE user_id = :user_id";
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
-            'total_appointments' => 0,
-            'total_completed' => 0,
-            'today_appointments' => 0,
-            'weekly_appointments' => 0,
-            'monthly_revenue' => 0,
-        ];
-    }
-
-    public function getUpcoming($user_id, $limit = 5) {
-        $query = "SELECT a.*, p.name as patient_name
-                  FROM " . $this->table . " a
-                  LEFT JOIN patients p ON a.patient_id = p.id
-                  WHERE a.user_id = :user_id
-                  AND a.appointment_date >= CURDATE()
-                  ORDER BY a.appointment_date ASC, a.appointment_time ASC
-                  LIMIT :limit";
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
-        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt;
-    }
-
-    // Listar agendamentos
-    public function read($user_id) {
-        $query = "SELECT a.*, p.name as patient_name 
-                  FROM " . $this->table . " a
-                  LEFT JOIN patients p ON a.patient_id = p.id 
-                  WHERE a.user_id = :user_id 
-                  ORDER BY a.appointment_date DESC, a.appointment_time ASC";
-        
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
-        
-        return $stmt;
-    }
-
-    // Buscar agendamento por ID
-    public function readOne($id, $user_id) {
-        $query = "SELECT a.*, p.name as patient_name 
-                  FROM " . $this->table . " a
-                  LEFT JOIN patients p ON a.patient_id = p.id 
-                  WHERE a.id = :id AND a.user_id = :user_id 
-                  LIMIT 1";
-        
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if($row) {
-            $this->id = $row['id'];
-            $this->user_id = $row['user_id'];
-            $this->patient_id = $row['patient_id'];
-            $this->appointment_date = $row['appointment_date'];
-            $this->appointment_time = $row['appointment_time'];
-            $this->duration = $row['duration'];
-            $this->amount = isset($row['amount']) ? $row['amount'] : 0;
-            $this->notes = $row['notes'];
-            $this->status = $row['status'];
-            $this->created_at = $row['created_at'];
-            $this->updated_at = $row['updated_at'];
-            return true;
+        if (!isset($_GET['id'])) {
+            error_log("❌ [APPOINTMENTS PUT] ID ausente");
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'ID não fornecido']);
+            break;
         }
-        return false;
-    }
 
-    // Buscar agendamentos por data
-    public function readByDate($user_id, $date) {
-        $query = "SELECT a.*, p.name as patient_name 
-                  FROM " . $this->table . " a
-                  LEFT JOIN patients p ON a.patient_id = p.id 
-                  WHERE a.user_id = :user_id AND DATE(a.appointment_date) = :date
-                  ORDER BY a.appointment_time ASC";
+        $appointment_id = $_GET['id'];
+        error_log("📝 ID: $appointment_id");
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->bindParam(':date', $date);
-        $stmt->execute();
-        
-        return $stmt;
-    }
+        // Buscar appointment existente
+        if (!$appointment->readOne($appointment_id, $user_id)) {
+            error_log("❌ [APPOINTMENTS PUT] Não encontrada");
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Consulta não encontrada']);
+            break;
+        }
 
-    // Atualizar agendamento
-    public function update() {
-        // Check if amount column exists
-        $columnCheck = "SHOW COLUMNS FROM " . $this->table . " LIKE 'amount'";
-        $checkStmt = $this->conn->prepare($columnCheck);
-        $checkStmt->execute();
-        $hasAmountColumn = $checkStmt->rowCount() > 0;
+        // Pegar dados do body
+        $rawInput = file_get_contents("php://input");
+        error_log("📝 Raw input: " . $rawInput);
         
-        if ($hasAmountColumn) {
-            $query = "UPDATE " . $this->table . " 
-                      SET patient_id = :patient_id, appointment_date = :appointment_date, 
-                          appointment_time = :appointment_time, duration = :duration,
-                          amount = :amount, notes = :notes, status = :status
-                      WHERE id = :id AND user_id = :user_id";
+        $data = json_decode($rawInput);
+        
+        if (!$data) {
+            error_log("❌ [APPOINTMENTS PUT] JSON inválido");
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Dados inválidos']);
+            break;
+        }
+
+        error_log("📝 Dados JSON: " . json_encode($data));
+
+        // Atualizar campos recebidos
+        if (isset($data->status)) {
+            error_log("🔄 Atualizando status: " . $data->status);
+            $appointment->status = $data->status;
+        }
+        if (isset($data->patient_id)) $appointment->patient_id = $data->patient_id;
+        if (isset($data->appointment_date)) $appointment->appointment_date = $data->appointment_date;
+        if (isset($data->appointment_time)) $appointment->appointment_time = $data->appointment_time;
+        if (isset($data->duration)) $appointment->duration = $data->duration;
+        if (isset($data->amount)) $appointment->amount = $data->amount;
+        if (isset($data->notes)) $appointment->notes = $data->notes;
+
+        // Executar update
+        if ($appointment->update()) {
+            error_log("✅ [APPOINTMENTS PUT] Atualizada com sucesso");
+            error_log("===============================================");
+            echo json_encode(['success' => true, 'message' => 'Consulta atualizada com sucesso']);
         } else {
-            $query = "UPDATE " . $this->table . " 
-                      SET patient_id = :patient_id, appointment_date = :appointment_date, 
-                          appointment_time = :appointment_time, duration = :duration,
-                          notes = :notes, status = :status
-                      WHERE id = :id AND user_id = :user_id";
+            error_log("❌ [APPOINTMENTS PUT] Falha no update");
+            error_log("===============================================");
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erro ao atualizar consulta']);
         }
+        break;
+
+    case 'DELETE':
+        error_log("🔵 [APPOINTMENTS DELETE]");
         
-        $stmt = $this->conn->prepare($query);
-
-        $stmt->bindParam(':patient_id', $this->patient_id);
-        $stmt->bindParam(':appointment_date', $this->appointment_date);
-        $stmt->bindParam(':appointment_time', $this->appointment_time);
-        $stmt->bindParam(':duration', $this->duration);
-        if ($hasAmountColumn) {
-            $stmt->bindParam(':amount', $this->amount);
+        if (!isset($_GET['id'])) {
+            error_log("❌ [APPOINTMENTS DELETE] ID ausente");
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'ID não fornecido']);
+            break;
         }
-        $stmt->bindParam(':notes', $this->notes);
-        $stmt->bindParam(':status', $this->status);
-        $stmt->bindParam(':id', $this->id);
-        $stmt->bindParam(':user_id', $this->user_id);
 
-        if ($stmt->execute()) {
-            $this->last_error = null;
-            return true;
+        $appointment_id = $_GET['id'];
+        $appointment->id = $appointment_id;
+        $appointment->user_id = $user_id;
+
+        if ($appointment->delete()) {
+            error_log("✅ [APPOINTMENTS DELETE] Deletada");
+            error_log("===============================================");
+            echo json_encode(['success' => true, 'message' => 'Consulta excluída']);
         } else {
-            $errorInfo = $stmt->errorInfo();
-            $this->last_error = [
-                'sqlstate' => $errorInfo[0],
-                'driver_code' => $errorInfo[1],
-                'message' => $errorInfo[2],
-                'full_message' => "SQLSTATE[{$errorInfo[0]}]: {$errorInfo[2]}"
-            ];
-            return false;
+            error_log("❌ [APPOINTMENTS DELETE] Falhou");
+            error_log("===============================================");
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erro ao excluir']);
         }
-    }
+        break;
 
-    // Deletar agendamento
-    public function delete() {
-        $query = "DELETE FROM " . $this->table . " 
-                  WHERE id = :id AND user_id = :user_id";
-        
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $this->id);
-        $stmt->bindParam(':user_id', $this->user_id);
-
-        return $stmt->execute();
-    }
-
-    // Completar agendamento
-    public function complete() {
-        $this->status = 'completed';
-        return $this->update();
-    }
+    default:
+        error_log("❌ [APPOINTMENTS] Método não permitido: $method");
+        http_response_code(405);
+        echo json_encode(['error' => 'Método não permitido']);
+        break;
 }
 ?>

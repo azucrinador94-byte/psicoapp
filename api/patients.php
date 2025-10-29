@@ -5,7 +5,6 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// DEBUG - REMOVER EM PRODUÇÃO
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -13,15 +12,13 @@ require_once '../config/dev.php';
 require_once '../config/database.php';
 require_once '../classes/Patient.php';
 
-// ===== AUTENTICAÇÃO SIMPLIFICADA =====
-// Se estiver em modo DEV, usar DEV_USER_ID
+// Autenticação
 if (defined('DEVELOPMENT_MODE') && DEVELOPMENT_MODE === true) {
     if (!isset($_SESSION['user_id']) && defined('DEV_USER_ID')) {
         $_SESSION['user_id'] = DEV_USER_ID;
     }
 }
 
-// Verificar se está autenticado
 $user_id = $_SESSION['user_id'] ?? null;
 
 if (!$user_id) {
@@ -38,11 +35,10 @@ if (!$user_id) {
     exit;
 }
 
-// Log de debug
 error_log("=== PATIENTS API ===");
 error_log("User ID: $user_id");
 error_log("Method: " . $_SERVER['REQUEST_METHOD']);
-error_log("Session: " . print_r($_SESSION, true));
+error_log("Query: " . ($_SERVER['QUERY_STRING'] ?? 'vazio'));
 
 $database = new Database();
 $db = $database->connect();
@@ -66,6 +62,7 @@ switch($method) {
                         'phone' => $patient->phone,
                         'birth_date' => $patient->birth_date,
                         'notes' => $patient->notes,
+                        'status' => $patient->status,
                         'created_at' => $patient->created_at,
                         'updated_at' => $patient->updated_at
                     ]);
@@ -135,6 +132,7 @@ switch($method) {
             $patient->phone = $data['phone'] ?? '';
             $patient->birth_date = $data['birth_date'] ?? '';
             $patient->notes = $data['notes'] ?? '';
+            $patient->status = $data['status'] ?? 'active';
 
             // Validação
             if (empty($patient->name)) {
@@ -156,7 +154,6 @@ switch($method) {
             error_log("Resultado do create(): " . var_export($result, true));
             
             if ($result) {
-                // Obter ID do paciente criado
                 $patient_id = is_numeric($result) ? $result : $db->lastInsertId();
                 
                 error_log("Paciente criado com ID: $patient_id");
@@ -196,7 +193,23 @@ switch($method) {
                 break;
             }
 
-            // Detectar tipo de conteúdo
+            // Verificar se é para alternar status
+            if (isset($_GET['action']) && $_GET['action'] === 'toggle-status') {
+                error_log("🔄 Toggle status para paciente ID: $patient_id");
+                
+                if ($patient->toggleStatus()) {
+                    echo json_encode([
+                        'success' => true, 
+                        'message' => 'Status alterado com sucesso',
+                        'new_status' => $patient->status
+                    ]);
+                } else {
+                    throw new Exception('Falha ao alternar status');
+                }
+                break;
+            }
+
+            // Atualização normal
             $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
             
             if (strpos($contentType, 'application/json') !== false) {
@@ -216,6 +229,7 @@ switch($method) {
             $patient->phone = $data['phone'] ?? $patient->phone;
             $patient->birth_date = $data['birth_date'] ?? $patient->birth_date;
             $patient->notes = $data['notes'] ?? $patient->notes;
+            $patient->status = $data['status'] ?? $patient->status;
 
             if ($patient->update()) {
                 echo json_encode(['success' => true, 'message' => 'Paciente atualizado com sucesso']);

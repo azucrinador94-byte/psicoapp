@@ -1314,5 +1314,179 @@ function savePricing() {
         showToast('Erro ao salvar preço', 'error');
     });
 }
+// =========================================
+// NOVAS FUNÇÕES - ADICIONAR NO assets/js/app.js
+// =========================================
+
+// ⭐ NOVA FUNÇÃO - Alternar status do paciente
+function togglePatientStatus(patientId) {
+    console.log('🔄 Alternando status do paciente:', patientId);
+    
+    if (confirm('Deseja alterar o status deste paciente?')) {
+        fetch(`api/patients.php?id=${patientId}&action=toggle-status`, {
+            method: 'PUT'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('📊 Resposta:', data);
+            
+            if (data.success) {
+                loadPatients();
+                showToast('Status alterado com sucesso!', 'success');
+            } else {
+                showToast(data.message || 'Erro ao alterar status', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro:', error);
+            showToast('Erro ao alterar status', 'error');
+        });
+    }
+}
+
+// ⭐ NOVA FUNÇÃO - Deletar sessão
+function deleteSession(sessionId) {
+    console.log('🗑️ Deletando sessão:', sessionId);
+    
+    if (confirm('Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.')) {
+        const patientId = currentPatientId || document.getElementById('session_patient_id').value;
+        
+        fetch(`api/consultation-history.php?id=${sessionId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('📊 Resposta:', data);
+            
+            if (data.success) {
+                loadPatientHistory(patientId);
+                showToast('Sessão excluída com sucesso!', 'success');
+            } else {
+                showToast(data.message || 'Erro ao excluir sessão', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro:', error);
+            showToast('Erro ao excluir sessão', 'error');
+        });
+    }
+}
+
+// ⭐ ATUALIZAR displayPatients - Substituir a função existente
+function displayPatients(patients) {
+    const grid = document.getElementById('patients-grid');
+    if (!grid) return;
+    
+    if (patients.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <i class="fas fa-users"></i>
+                <h3>Nenhum paciente encontrado</h3>
+                <p>Tente ajustar os termos da busca ou adicione um novo paciente</p>
+                <button class="btn btn-primary" onclick="openPatientModal()">
+                    <i class="fas fa-plus"></i> Adicionar Primeiro Paciente
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = patients.map(patient => {
+        const age = calculateAge(patient.birth_date);
+        const statusClass = patient.status === 'active' ? 'success' : 'secondary';
+        const statusLabel = patient.status === 'active' ? 'Ativo' : 'Inativo';
+        const statusIcon = patient.status === 'active' ? 'check-circle' : 'pause-circle';
+        
+        return `
+            <div class="patient-card ${patient.status === 'inactive' ? 'inactive-patient' : ''}">
+                <div class="patient-card-header">
+                    <div class="patient-card-info">
+                        <h3>${escapeHtml(patient.name)}</h3>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <span class="badge">${age} anos</span>
+                            <span class="badge badge-${statusClass}">
+                                <i class="fas fa-${statusIcon}"></i> ${statusLabel}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="patient-card-details">
+                    <div class="detail-item">
+                        <i class="fas fa-envelope"></i>
+                        <span>${escapeHtml(patient.email)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-phone"></i>
+                        <span>${escapeHtml(patient.phone)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-calendar"></i>
+                        <span>Paciente desde ${formatDate(patient.created_at)}</span>
+                    </div>
+                </div>
+                
+                <div class="patient-card-actions">
+                    <button class="btn btn-outline btn-sm" onclick="editPatient(${patient.id})" title="Editar paciente">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="viewPatientAnamnesis(${patient.id})" title="Ver anamnese">
+                        <i class="fas fa-clipboard-list"></i> Anamnese
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="viewPatientHistory(${patient.id})" title="Ver histórico">
+                        <i class="fas fa-history"></i> Histórico
+                    </button>
+                    <button class="btn btn-${patient.status === 'active' ? 'warning' : 'success'} btn-sm" 
+                            onclick="togglePatientStatus(${patient.id})"
+                            title="${patient.status === 'active' ? 'Desativar' : 'Ativar'} paciente">
+                        <i class="fas fa-${patient.status === 'active' ? 'pause' : 'play'}"></i>
+                        ${patient.status === 'active' ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <button class="btn btn-destructive btn-sm" onclick="deletePatient(${patient.id})" title="Excluir paciente">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ⭐ ATUALIZAR displaySessionsList - Substituir a função existente
+function displaySessionsList(sessions) {
+    const container = document.getElementById('sessions-list');
+    
+    if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<p class="text-center" style="padding: 2rem; color: #6b7280;">Nenhuma sessão registrada ainda.</p>';
+        return;
+    }
+    
+    container.innerHTML = sessions.map(session => `
+        <div class="session-item" style="position: relative;">
+            <div class="session-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1;">
+                    <span class="session-number" style="font-weight: 600;">Sessão ${session.session_number}</span>
+                    <span class="session-date" style="color: #6b7280;">${new Date(session.session_date).toLocaleDateString('pt-BR')}</span>
+                    <span class="session-mood mood-${session.patient_mood}" style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.875rem;">
+                        ${getMoodLabel(session.patient_mood)}
+                    </span>
+                </div>
+                <button class="btn btn-sm btn-destructive" 
+                        onclick="event.stopPropagation(); deleteSession(${session.id});" 
+                        title="Excluir sessão"
+                        style="padding: 0.25rem 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+                    <i class="fas fa-trash"></i>
+                    <span style="font-size: 0.75rem;">Excluir</span>
+                </button>
+            </div>
+            <div class="session-content" onclick="editSession(${session.id})" 
+                 style="cursor: pointer; padding: 0.75rem; background: #f9fafb; border-radius: 0.375rem; transition: background 0.2s;"
+                 onmouseover="this.style.background='#f3f4f6'" 
+                 onmouseout="this.style.background='#f9fafb'">
+                <div class="session-notes" style="color: #374151;">${escapeHtml(session.session_notes) || '<em style="color: #9ca3af;">Sem anotações</em>'}</div>
+                ${session.homework ? `<div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb;"><strong style="color: #6366f1;">Tarefa:</strong> <span style="color: #374151;">${escapeHtml(session.homework)}</span></div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
 
 console.log('✅ App.js carregado com sucesso!');

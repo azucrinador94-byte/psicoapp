@@ -22,60 +22,66 @@ class ConsultationHistory {
         $this->conn = $db;
     }
 
-    // Criar registro de consulta
     public function create() {
-        // Obter próximo número da sessão
+        error_log("🔵 [CONSULTATION CREATE] Criando nova sessão");
+        error_log("   - patient_id: " . $this->patient_id);
+        error_log("   - session_date: " . $this->session_date);
+        error_log("   - patient_mood: " . $this->patient_mood);
+        
         $this->session_number = $this->getNextSessionNumber($this->patient_id, $this->user_id);
+        
+        error_log("   - session_number: " . $this->session_number);
         
         $query = "INSERT INTO " . $this->table . " 
                   (user_id, patient_id, appointment_id, session_number, session_date, 
                    session_notes, observations, homework, next_session_goals, patient_mood, session_duration) 
-                  VALUES (:user_id, :patient_id, :appointment_id, :session_number, :session_date, 
-                          :session_notes, :observations, :homework, :next_session_goals, :patient_mood, :session_duration)";
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $this->conn->prepare($query);
 
-        $stmt->bindParam(':user_id', $this->user_id);
-        $stmt->bindParam(':patient_id', $this->patient_id);
-        $stmt->bindParam(':appointment_id', $this->appointment_id);
-        $stmt->bindParam(':session_number', $this->session_number);
-        $stmt->bindParam(':session_date', $this->session_date);
-        $stmt->bindParam(':session_notes', $this->session_notes);
-        $stmt->bindParam(':observations', $this->observations);
-        $stmt->bindParam(':homework', $this->homework);
-        $stmt->bindParam(':next_session_goals', $this->next_session_goals);
-        $stmt->bindParam(':patient_mood', $this->patient_mood);
-        $stmt->bindParam(':session_duration', $this->session_duration);
+        $success = $stmt->execute([
+            $this->user_id,
+            $this->patient_id,
+            $this->appointment_id,
+            $this->session_number,
+            $this->session_date,
+            $this->session_notes,
+            $this->observations,
+            $this->homework,
+            $this->next_session_goals,
+            $this->patient_mood,
+            $this->session_duration
+        ]);
+        
+        if ($success) {
+            error_log("✅ [CONSULTATION CREATE] Sessão criada com sucesso");
+        } else {
+            error_log("❌ [CONSULTATION CREATE] Falha ao criar");
+        }
 
-        return $stmt->execute();
+        return $success;
     }
 
-    // Buscar histórico por paciente
     public function readByPatient($patient_id, $user_id) {
         $query = "SELECT ch.*, p.name as patient_name 
                   FROM " . $this->table . " ch
                   LEFT JOIN patients p ON ch.patient_id = p.id 
-                  WHERE ch.patient_id = :patient_id AND ch.user_id = :user_id 
+                  WHERE ch.patient_id = ? AND ch.user_id = ? 
                   ORDER BY ch.session_date DESC, ch.session_number DESC";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':patient_id', $patient_id);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
+        $stmt->execute([$patient_id, $user_id]);
         
         return $stmt;
     }
 
-    // Buscar uma sessão específica
     public function readOne($id, $user_id) {
         $query = "SELECT * FROM " . $this->table . " 
-                  WHERE id = :id AND user_id = :user_id 
+                  WHERE id = ? AND user_id = ? 
                   LIMIT 1";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
+        $stmt->execute([$id, $user_id]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -97,56 +103,108 @@ class ConsultationHistory {
         return false;
     }
 
-    // Atualizar registro de consulta
     public function update() {
+        error_log("🔵 [CONSULTATION UPDATE] Atualizando sessão ID: " . $this->id);
+        error_log("   - session_date: " . $this->session_date);
+        error_log("   - patient_mood: " . $this->patient_mood);
+        error_log("   - session_duration: " . $this->session_duration);
+        
         $query = "UPDATE " . $this->table . " 
-                  SET session_notes = :session_notes, observations = :observations, 
-                      homework = :homework, next_session_goals = :next_session_goals,
-                      patient_mood = :patient_mood, session_duration = :session_duration
-                  WHERE id = :id AND user_id = :user_id";
+                  SET session_date = ?,
+                      patient_id = ?,
+                      appointment_id = ?,
+                      session_notes = ?, 
+                      observations = ?, 
+                      homework = ?, 
+                      next_session_goals = ?,
+                      patient_mood = ?, 
+                      session_duration = ?
+                  WHERE id = ? AND user_id = ?";
         
         $stmt = $this->conn->prepare($query);
 
-        $stmt->bindParam(':session_notes', $this->session_notes);
-        $stmt->bindParam(':observations', $this->observations);
-        $stmt->bindParam(':homework', $this->homework);
-        $stmt->bindParam(':next_session_goals', $this->next_session_goals);
-        $stmt->bindParam(':patient_mood', $this->patient_mood);
-        $stmt->bindParam(':session_duration', $this->session_duration);
-        $stmt->bindParam(':id', $this->id);
-        $stmt->bindParam(':user_id', $this->user_id);
+        $success = $stmt->execute([
+            $this->session_date,
+            $this->patient_id,
+            $this->appointment_id,
+            $this->session_notes,
+            $this->observations,
+            $this->homework,
+            $this->next_session_goals,
+            $this->patient_mood,
+            $this->session_duration,
+            $this->id,
+            $this->user_id
+        ]);
+        
+        if ($success) {
+            $rowCount = $stmt->rowCount();
+            error_log("✅ [CONSULTATION UPDATE] Atualizada! Linhas afetadas: $rowCount");
+            
+            // Verificar se realmente salvou
+            $verify = $this->conn->prepare("SELECT session_date, patient_mood FROM {$this->table} WHERE id = ?");
+            $verify->execute([$this->id]);
+            $saved = $verify->fetch(PDO::FETCH_ASSOC);
+            
+            if ($saved) {
+                error_log("📊 VERIFICAÇÃO - Valores no banco:");
+                error_log("   - session_date: " . $saved['session_date']);
+                error_log("   - patient_mood: " . $saved['patient_mood']);
+            }
+        } else {
+            error_log("❌ [CONSULTATION UPDATE] Falha ao atualizar");
+        }
 
-        return $stmt->execute();
+        return $success;
     }
 
-    // Obter próximo número de sessão
+    // ⭐ NOVO MÉTODO - Deletar sessão
+    public function delete() {
+        try {
+            error_log("🗑️ [CONSULTATION DELETE] Deletando sessão ID: " . $this->id);
+            
+            $query = "DELETE FROM " . $this->table . " 
+                      WHERE id = ? AND user_id = ?";
+            
+            $stmt = $this->conn->prepare($query);
+            $success = $stmt->execute([$this->id, $this->user_id]);
+            
+            if ($success) {
+                $rowCount = $stmt->rowCount();
+                error_log("✅ [CONSULTATION DELETE] Deletada! Linhas afetadas: $rowCount");
+            } else {
+                error_log("❌ [CONSULTATION DELETE] Falha ao deletar");
+            }
+            
+            return $success;
+        } catch (PDOException $e) {
+            error_log("❌ Erro ao deletar sessão: " . $e->getMessage());
+            return false;
+        }
+    }
+
     private function getNextSessionNumber($patient_id, $user_id) {
         $query = "SELECT MAX(session_number) as max_session 
                   FROM " . $this->table . " 
-                  WHERE patient_id = :patient_id AND user_id = :user_id";
+                  WHERE patient_id = ? AND user_id = ?";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':patient_id', $patient_id);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
+        $stmt->execute([$patient_id, $user_id]);
         
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return ($result['max_session'] ?? 0) + 1;
     }
 
-    // Obter estatísticas de sessões por paciente
     public function getPatientStats($patient_id, $user_id) {
         $query = "SELECT 
                     COUNT(*) as total_sessions,
                     MAX(session_date) as last_session,
                     AVG(session_duration) as avg_duration
                   FROM " . $this->table . " 
-                  WHERE patient_id = :patient_id AND user_id = :user_id";
+                  WHERE patient_id = ? AND user_id = ?";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':patient_id', $patient_id);
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->execute();
+        $stmt->execute([$patient_id, $user_id]);
         
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }

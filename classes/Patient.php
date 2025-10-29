@@ -10,6 +10,7 @@ class Patient {
     public $phone;
     public $birth_date;
     public $notes;
+    public $status;
     public $created_at;
     public $updated_at;
 
@@ -17,10 +18,9 @@ class Patient {
         $this->conn = $db;
     }
 
-    // Criar paciente - VERSÃO SIMPLIFICADA
+    // Criar paciente
     public function create() {
         try {
-            // Log inicial
             error_log("===============================================");
             error_log("🔵 INICIANDO CREATE PACIENTE");
             error_log("Nome: " . $this->name);
@@ -28,6 +28,7 @@ class Patient {
             error_log("Phone: " . $this->phone);
             error_log("Birth Date: " . $this->birth_date);
             error_log("User ID: " . $this->user_id);
+            error_log("Status: " . ($this->status ?? 'active'));
             
             // Limpar e sanitizar
             $name = htmlspecialchars(strip_tags(trim($this->name)));
@@ -36,6 +37,7 @@ class Patient {
             $notes = !empty($this->notes) ? htmlspecialchars(strip_tags(trim($this->notes))) : null;
             $birth_date = $this->birth_date;
             $user_id = $this->user_id;
+            $status = $this->status ?? 'active';
             
             // Validações básicas
             if (empty($name) || strlen($name) < 3) {
@@ -61,8 +63,8 @@ class Patient {
             error_log("✅ Validações básicas OK");
             
             // Query de inserção
-            $query = "INSERT INTO patients (user_id, name, email, phone, birth_date, notes) 
-                      VALUES (?, ?, ?, ?, ?, ?)";
+            $query = "INSERT INTO patients (user_id, name, email, phone, birth_date, notes, status) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?)";
             
             error_log("🔵 Query preparada");
             
@@ -77,7 +79,7 @@ class Patient {
             error_log("🔵 Statement preparado, executando...");
             
             // Executar com array de parâmetros
-            $params = [$user_id, $name, $email, $phone, $birth_date, $notes];
+            $params = [$user_id, $name, $email, $phone, $birth_date, $notes, $status];
             error_log("Parâmetros: " . print_r($params, true));
             
             $success = $stmt->execute($params);
@@ -109,7 +111,7 @@ class Patient {
 
     // Listar pacientes
     public function read($user_id, $limit = null, $offset = 0) {
-        $query = "SELECT * FROM patients WHERE user_id = ? ORDER BY name ASC";
+        $query = "SELECT * FROM patients WHERE user_id = ? ORDER BY status ASC, name ASC";
         
         if ($limit) {
             $query .= " LIMIT ? OFFSET ?";
@@ -143,6 +145,7 @@ class Patient {
             $this->phone = $row['phone'];
             $this->birth_date = $row['birth_date'];
             $this->notes = $row['notes'];
+            $this->status = $row['status'] ?? 'active';
             $this->created_at = $row['created_at'];
             $this->updated_at = $row['updated_at'];
             return true;
@@ -153,29 +156,66 @@ class Patient {
     // Atualizar paciente
     public function update() {
         try {
+            error_log("🔵 [PATIENT UPDATE] ID: " . $this->id);
+            
             // Limpar e sanitizar
             $name = htmlspecialchars(strip_tags(trim($this->name)));
             $email = !empty($this->email) ? htmlspecialchars(strip_tags(trim($this->email))) : null;
             $phone = htmlspecialchars(strip_tags(trim($this->phone)));
             $notes = !empty($this->notes) ? htmlspecialchars(strip_tags(trim($this->notes))) : null;
+            $status = $this->status ?? 'active';
             
             $query = "UPDATE patients 
-                      SET name = ?, email = ?, phone = ?, birth_date = ?, notes = ? 
+                      SET name = ?, email = ?, phone = ?, birth_date = ?, notes = ?, status = ? 
                       WHERE id = ? AND user_id = ?";
             
             $stmt = $this->conn->prepare($query);
             
-            return $stmt->execute([
+            $success = $stmt->execute([
                 $name, 
                 $email, 
                 $phone, 
                 $this->birth_date, 
-                $notes, 
+                $notes,
+                $status,
                 $this->id, 
                 $this->user_id
             ]);
+            
+            if ($success) {
+                error_log("✅ [PATIENT UPDATE] Paciente atualizado");
+            } else {
+                error_log("❌ [PATIENT UPDATE] Falha ao atualizar");
+            }
+            
+            return $success;
         } catch (PDOException $e) {
             error_log("❌ Erro ao atualizar paciente: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Alternar status do paciente (ativo/inativo)
+    public function toggleStatus() {
+        try {
+            error_log("🔄 [TOGGLE STATUS] Paciente ID: " . $this->id);
+            
+            $query = "UPDATE patients 
+                      SET status = IF(status = 'active', 'inactive', 'active')
+                      WHERE id = ? AND user_id = ?";
+            
+            $stmt = $this->conn->prepare($query);
+            $success = $stmt->execute([$this->id, $this->user_id]);
+            
+            if ($success) {
+                // Recarregar dados
+                $this->readOne($this->id, $this->user_id);
+                error_log("✅ [TOGGLE STATUS] Novo status: " . $this->status);
+            }
+            
+            return $success;
+        } catch (PDOException $e) {
+            error_log("❌ Erro ao alternar status: " . $e->getMessage());
             return false;
         }
     }
@@ -183,6 +223,8 @@ class Patient {
     // Deletar paciente
     public function delete() {
         try {
+            error_log("🗑️ [DELETE PATIENT] ID: " . $this->id);
+            
             $this->conn->beginTransaction();
             
             // Deletar relacionados
@@ -197,6 +239,9 @@ class Patient {
                 $query = "DELETE FROM {$table} WHERE patient_id = ? AND user_id = ?";
                 $stmt = $this->conn->prepare($query);
                 $stmt->execute([$this->id, $this->user_id]);
+                
+                $deleted = $stmt->rowCount();
+                error_log("   Deletados {$deleted} registros de {$table}");
             }
             
             // Deletar paciente
@@ -205,6 +250,7 @@ class Patient {
             $stmt->execute([$this->id, $this->user_id]);
             
             $this->conn->commit();
+            error_log("✅ [DELETE PATIENT] Paciente e relacionados deletados");
             return true;
         } catch (PDOException $e) {
             $this->conn->rollBack();
@@ -218,7 +264,7 @@ class Patient {
         $query = "SELECT * FROM patients 
                   WHERE user_id = ? 
                   AND (name LIKE ? OR email LIKE ? OR phone LIKE ?) 
-                  ORDER BY name ASC";
+                  ORDER BY status ASC, name ASC";
         
         $search = "%{$search_term}%";
         $stmt = $this->conn->prepare($query);
@@ -237,17 +283,27 @@ class Patient {
         return $row['total'];
     }
 
-    // Métodos auxiliares (não obrigatórios, mantidos para compatibilidade)
+    // Contar pacientes ativos
+    public function countActive($user_id) {
+        $query = "SELECT COUNT(*) as total FROM patients WHERE user_id = ? AND status = 'active'";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([$user_id]);
+        
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row['total'];
+    }
+
+    // Métodos auxiliares
     public function readWithStats($user_id) {
         return $this->read($user_id);
     }
 
     public function validate() {
-        return []; // Validação agora é feita no create()
+        return [];
     }
 
     public function emailExists($email, $user_id, $exclude_id = null) {
-        return false; // Desabilitado por enquanto
+        return false;
     }
 }
 ?>

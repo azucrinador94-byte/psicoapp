@@ -740,21 +740,29 @@ function displayDailyAppointments(appointments) {
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
                     <div class="appointment-dropdown" id="menu-${appointment.id}">
-                        <button onclick="editAppointment(${appointment.id})">
-                            <i class="fas fa-edit"></i> Editar
-                        </button>
-                        ${appointment.status === 'scheduled' ? `
-                            <button onclick="openRescheduleModal(${appointment.id})">
-                                <i class="fas fa-calendar-alt"></i> Reagendar
-                            </button>
-                            <button onclick="completeAppointment(${appointment.id})">
-                                <i class="fas fa-check"></i> Concluir
-                            </button>
-                        ` : ''}
-                        <button onclick="deleteAppointment(${appointment.id})" class="text-danger">
-                            <i class="fas fa-trash"></i> Excluir
-                        </button>
-                    </div>
+    <button onclick="event.stopPropagation(); closeAllMenus(); editAppointment(${appointment.id})">
+        <i class="fas fa-edit"></i> Editar
+    </button>
+    ${appointment.status === 'scheduled' ? `
+        <button onclick="event.stopPropagation(); closeAllMenus(); openRescheduleModal(${appointment.id})">
+            <i class="fas fa-calendar-alt"></i> Reagendar
+        </button>
+        <button onclick="event.stopPropagation(); closeAllMenus(); completeAppointment(${appointment.id})">
+            <i class="fas fa-check"></i> Concluir
+        </button>
+        <button onclick="event.stopPropagation(); closeAllMenus(); cancelAppointment(${appointment.id})" class="text-warning">
+            <i class="fas fa-ban"></i> Cancelar
+        </button>
+    ` : ''}
+    ${appointment.status === 'cancelled' ? `
+        <button onclick="event.stopPropagation(); closeAllMenus(); reactivateAppointment(${appointment.id})">
+            <i class="fas fa-undo"></i> Reativar
+        </button>
+    ` : ''}
+    <button onclick="event.stopPropagation(); closeAllMenus(); deleteAppointment(${appointment.id})" class="text-danger">
+        <i class="fas fa-trash"></i> Excluir
+    </button>
+</div>
                 </div>
             </div>
         </div>

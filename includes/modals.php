@@ -605,3 +605,53 @@
         </div>
     </div>
 </div>
+<!-- Reschedule Modal - ADICIONAR NO FINAL -->
+<div id="reschedule-modal" class="modal" role="dialog" aria-labelledby="reschedule-modal-title" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="reschedule-modal-title" class="modal-title">Reagendar Consulta</h2>
+            <button class="modal-close" data-modal-close="reschedule-modal" aria-label="Fechar modal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div style="background: #f0f9ff; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
+                <p style="margin: 0; color: #0369a1;">
+                    <i class="fas fa-info-circle"></i> 
+                    <strong>Consulta original:</strong> 
+                    <span id="original-appointment-info"></span>
+                </p>
+            </div>
+            
+            <form id="reschedule-form" novalidate>
+                <input type="hidden" id="reschedule_appointment_id">
+                
+                <div class="form-group">
+                    <label for="reschedule_date" class="form-label">Nova Data *</label>
+                    <input type="date" id="reschedule_date" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reschedule_time" class="form-label">Novo Horário *</label>
+                    <input type="time" id="reschedule_time" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reschedule_reason" class="form-label">Motivo (opcional)</label>
+                    <textarea id="reschedule_reason" class="form-textarea" rows="2"
+                              placeholder="Ex: Solicitado pelo paciente..."></textarea>
+                </div>
+            </form>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="confirmReschedule()">
+                <i class="fas fa-calendar-check"></i> Reagendar
+            </button>
+            <button type="button" class="btn btn-outline" data-modal-close="reschedule-modal">
+                Cancelar
+            </button>
+        </div>
+    </div>
+</div>

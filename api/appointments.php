@@ -65,6 +65,25 @@ switch($method) {
         } else if (isset($_GET['stats'])) {
             $stats = $appointment->getStats($user_id);
             echo json_encode($stats);
+} else if (isset($_GET['start_date']) && isset($_GET['end_date'])) {
+    // Buscar consultas entre datas
+    $start_date = $_GET['start_date'];
+    $end_date = $_GET['end_date'];
+    error_log("🔍 [APPOINTMENTS GET] Período: $start_date a $end_date");
+    
+    $query = "SELECT a.*, p.name as patient_name 
+              FROM appointments a
+              LEFT JOIN patients p ON a.patient_id = p.id
+              WHERE a.user_id = ? 
+              AND a.appointment_date BETWEEN ? AND ?
+              ORDER BY a.appointment_date ASC, a.appointment_time ASC";
+    
+    $stmt = $db->prepare($query);
+    $stmt->execute([$user_id, $start_date, $end_date]);
+    $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    error_log("✅ [APPOINTMENTS GET] " . count($appointments) . " consultas no período");
+    echo json_encode($appointments);
         } else {
             $stmt = $appointment->read($user_id);
             $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);

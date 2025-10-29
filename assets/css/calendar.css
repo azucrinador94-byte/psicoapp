@@ -1,0 +1,547 @@
+/* =========================================
+   CALENDÁRIO MENSAL - ESTILOS COMPLETOS
+   ========================================= */
+
+.calendar-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Cabeçalho */
+.calendar-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-navigation {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.calendar-navigation h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    min-width: 220px;
+    text-align: center;
+}
+
+.calendar-navigation .btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-header-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* Layout Principal */
+.calendar-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.calendar-main {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Grid do Calendário */
+.calendar-grid-container {
+    width: 100%;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.weekday-cell {
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: #6b7280;
+    padding: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.calendar-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+}
+
+/* Células dos Dias */
+.calendar-day {
+    min-height: 100px;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    position: relative;
+}
+
+.calendar-day:hover {
+    border-color: #6366f1;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.1);
+    transform: translateY(-2px);
+}
+
+.calendar-day.other-month {
+    opacity: 0.35;
+    background: #fafafa;
+}
+
+.calendar-day.other-month:hover {
+    opacity: 0.6;
+}
+
+.calendar-day.today {
+    border-color: #ef4444;
+    background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.calendar-day.today .day-number {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+.calendar-day.selected {
+    border-color: #6366f1;
+    border-width: 3px;
+    background: linear-gradient(135deg, #eef2ff 0%, #ffffff 100%);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.calendar-day.has-appointments {
+    border-color: #a5b4fc;
+}
+
+.day-number {
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: #111827;
+    margin-bottom: auto;
+}
+
+.day-appointments {
+    display: flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+
+.apt-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.apt-badge.scheduled {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+}
+
+.apt-badge.completed {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+/* Sidebar */
+.calendar-sidebar-panel {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 180px);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.sidebar-header-panel h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.count-badge {
+    background: #6366f1;
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    min-width: 32px;
+    text-align: center;
+}
+
+.appointments-list-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Empty State */
+.empty-state-calendar {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #9ca3af;
+}
+
+.empty-state-calendar i {
+    font-size: 4rem;
+    opacity: 0.2;
+    margin-bottom: 1rem;
+}
+
+.empty-state-calendar p {
+    margin: 0.5rem 0 1.5rem 0;
+    font-size: 0.938rem;
+}
+
+/* Cartões de Consulta */
+.appointment-card {
+    background: #f9fafb;
+    border-left: 4px solid #6366f1;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.appointment-card:hover {
+    background: #f3f4f6;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transform: translateX(2px);
+}
+
+.appointment-card.completed {
+    border-left-color: #10b981;
+}
+
+.appointment-card.cancelled {
+    border-left-color: #ef4444;
+    opacity: 0.7;
+}
+
+.appointment-time {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.appointment-time i {
+    color: #6366f1;
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.appointment-time span {
+    font-weight: 700;
+    color: #111827;
+    font-size: 0.938rem;
+}
+
+.appointment-details {
+    flex: 1;
+}
+
+.appointment-details h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.appointment-details p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.appointment-details .amount {
+    color: #10b981;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.appointment-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.status-badge {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.status-badge.scheduled {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-badge.completed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Menu de Ações */
+.appointment-menu {
+    position: relative;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: #6b7280;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.appointment-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+
+.appointment-dropdown.active {
+    display: block;
+    animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.appointment-dropdown button {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.938rem;
+    color: #374151;
+    transition: background 0.15s;
+    font-weight: 500;
+}
+
+.appointment-dropdown button i {
+    width: 20px;
+    text-align: center;
+}
+
+.appointment-dropdown button:hover {
+    background: #f3f4f6;
+}
+
+.appointment-dropdown button.text-danger {
+    color: #dc2626;
+}
+
+.appointment-dropdown button.text-danger:hover {
+    background: #fee2e2;
+}
+
+/* Legenda */
+.calendar-footer {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e5e7eb;
+}
+
+.calendar-legend {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Responsivo */
+@media (max-width: 1280px) {
+    .calendar-layout {
+        grid-template-columns: 1fr 320px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .calendar-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .calendar-sidebar-panel {
+        position: relative;
+        max-height: 600px;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-header-bar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .calendar-navigation {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .calendar-navigation h2 {
+        font-size: 1.25rem;
+    }
+    
+    .calendar-header-actions {
+        width: 100%;
+    }
+    
+    .calendar-header-actions .btn {
+        flex: 1;
+    }
+    
+    .weekday-cell {
+        font-size: 0.75rem;
+        padding: 0.375rem;
+    }
+    
+    .calendar-day {
+        min-height: 70px;
+        padding: 0.5rem;
+    }
+    
+    .day-number {
+        font-size: 0.938rem;
+    }
+    
+    .apt-badge {
+        font-size: 0.688rem;
+        padding: 0.125rem 0.375rem;
+    }
+    
+    .appointment-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .appointment-time {
+        flex-direction: row;
+        gap: 0.5rem;
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-days-grid {
+        gap: 0.25rem;
+    }
+    
+    .calendar-day {
+        min-height: 60px;
+        padding: 0.375rem;
+    }
+    
+    .day-number {
+        font-size: 0.875rem;
+    }
+}

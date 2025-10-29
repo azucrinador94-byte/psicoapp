@@ -531,36 +531,187 @@ function saveSession() {
 }
 
 // ======================
-// CALENDAR/APPOINTMENTS
+// CALENDAR/APPOINTMENTS - CALENDÁRIO MENSAL
 // ======================
 
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let selectedDate = new Date();
+let monthAppointments = [];
+
 function loadCalendar() {
-    const dateStr = formatDateForAPI(currentDate);
-    updateDateDisplay();
-    updateDayStats([]);
+    console.log('📅 Carregando calendário:', currentMonth + 1, currentYear);
     
-    fetch(`api/appointments.php?date=${dateStr}`)
+    updateMonthYearDisplay();
+    
+    // Buscar todas as consultas do mês
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    
+    const startDate = formatDateForAPI(firstDay);
+    const endDate = formatDateForAPI(lastDay);
+    
+    console.log('📅 Período:', startDate, 'até', endDate);
+    
+    fetch(`api/appointments.php?start_date=${startDate}&end_date=${endDate}`)
         .then(response => response.json())
         .then(data => {
-            displayDailyAppointments(data);
-            updateDayStats(data);
+            console.log('✅ Consultas carregadas:', data.length);
+            monthAppointments = Array.isArray(data) ? data : [];
+            renderCalendarDays();
+            loadDayAppointments(selectedDate);
         })
         .catch(error => {
-            console.error('Error loading appointments:', error);
+            console.error('❌ Erro ao carregar calendário:', error);
+            monthAppointments = [];
+            renderCalendarDays();
         });
 }
 
+function renderCalendarDays() {
+    const container = document.getElementById('calendar-days');
+    if (!container) {
+        console.error('❌ Elemento calendar-days não encontrado');
+        return;
+    }
+    
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const prevLastDay = new Date(currentYear, currentMonth, 0);
+    
+    const firstDayOfWeek = firstDay.getDay();
+    const lastDateOfMonth = lastDay.getDate();
+    const prevLastDate = prevLastDay.getDate();
+    
+    let days = [];
+    
+    // Dias do mês anterior
+    for (let i = firstDayOfWeek; i > 0; i--) {
+        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        days.push({
+            date: prevLastDate - i + 1,
+            isCurrentMonth: false,
+            month: prevMonth,
+            year: prevYear
+        });
+    }
+    
+    // Dias do mês atual
+    for (let i = 1; i <= lastDateOfMonth; i++) {
+        days.push({
+            date: i,
+            isCurrentMonth: true,
+            month: currentMonth,
+            year: currentYear
+        });
+    }
+    
+    // Dias do próximo mês para completar o grid
+    const remainingDays = 42 - days.length; // 6 semanas x 7 dias
+    for (let i = 1; i <= remainingDays; i++) {
+        const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+        const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+        days.push({
+            date: i,
+            isCurrentMonth: false,
+            month: nextMonth,
+            year: nextYear
+        });
+    }
+    
+    // Renderizar dias
+    container.innerHTML = days.map(day => {
+        const date = new Date(day.year, day.month, day.date);
+        const dateStr = formatDateForAPI(date);
+        
+        // Verificar se é hoje
+        const today = new Date();
+        const isToday = date.toDateString() === today.toDateString();
+        
+        // Verificar se é o dia selecionado
+        const isSelected = date.toDateString() === selectedDate.toDateString();
+        
+        // Contar consultas do dia
+        const dayAppointments = monthAppointments.filter(apt => apt.appointment_date === dateStr);
+        const hasAppointments = dayAppointments.length > 0;
+        
+        // Contar por status
+        const scheduled = dayAppointments.filter(apt => apt.status === 'scheduled').length;
+        const completed = dayAppointments.filter(apt => apt.status === 'completed').length;
+        
+        let classes = ['calendar-day'];
+        if (!day.isCurrentMonth) classes.push('other-month');
+        if (isToday) classes.push('today');
+        if (isSelected) classes.push('selected');
+        if (hasAppointments) classes.push('has-appointments');
+        
+        return `
+            <div class="${classes.join(' ')}" onclick="selectDate('${dateStr}')" data-date="${dateStr}">
+                <div class="day-number">${day.date}</div>
+                ${hasAppointments ? `
+                    <div class="day-appointments">
+                        ${scheduled > 0 ? `<span class="apt-badge scheduled">${scheduled}</span>` : ''}
+                        ${completed > 0 ? `<span class="apt-badge completed">${completed}</span>` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    console.log('✅ Calendário renderizado:', days.length, 'dias');
+}
+
+function selectDate(dateStr) {
+    console.log('📅 Data selecionada:', dateStr);
+    selectedDate = new Date(dateStr + 'T12:00:00');
+    
+    // Atualizar visual
+    document.querySelectorAll('.calendar-day').forEach(day => {
+        day.classList.remove('selected');
+    });
+    
+    const selectedDay = document.querySelector(`[data-date="${dateStr}"]`);
+    if (selectedDay) {
+        selectedDay.classList.add('selected');
+    }
+    
+    loadDayAppointments(selectedDate);
+}
+
+function loadDayAppointments(date) {
+    const dateStr = formatDateForAPI(date);
+    const dayName = date.toLocaleDateString('pt-BR', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long' 
+    });
+    
+    // Capitalizar primeira letra
+    const capitalizedDayName = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    
+    document.getElementById('selected-day-title').textContent = capitalizedDayName;
+    
+    const dayAppointments = monthAppointments.filter(apt => apt.appointment_date === dateStr);
+    
+    document.getElementById('selected-day-count').textContent = dayAppointments.length;
+    
+    displayDailyAppointments(dayAppointments);
+}
+
 function displayDailyAppointments(appointments) {
-    const container = document.getElementById('daily-appointments');
-    if (!container) return;
+    const container = document.getElementById('daily-appointments-list');
+    if (!container) {
+        console.error('❌ Elemento daily-appointments-list não encontrado');
+        return;
+    }
     
     if (appointments.length === 0) {
         container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar"></i>
-                <h3>Nenhuma consulta agendada</h3>
-                <p>Não há consultas marcadas para este dia</p>
-                <button class="btn btn-primary" onclick="openAppointmentModal()">
+            <div class="empty-state-calendar">
+                <i class="fas fa-calendar-check"></i>
+                <p>Nenhuma consulta neste dia</p>
+                <button class="btn btn-primary" onclick="openAppointmentModalForDate()">
                     <i class="fas fa-plus"></i> Agendar Consulta
                 </button>
             </div>
@@ -568,192 +719,199 @@ function displayDailyAppointments(appointments) {
         return;
     }
     
+    // Ordenar por horário
+    appointments.sort((a, b) => a.appointment_time.localeCompare(b.appointment_time));
+    
     container.innerHTML = appointments.map(appointment => `
-        <div class="appointment-item">
-            <div class="appointment-icon">
-                <i class="fas fa-user"></i>
+        <div class="appointment-card ${appointment.status}">
+            <div class="appointment-time">
+                <i class="fas fa-clock"></i>
+                <span>${formatTime(appointment.appointment_time)}</span>
             </div>
-            <div class="appointment-info">
-                <h3>${escapeHtml(appointment.patient_name)}</h3>
-                <p>${formatTime(appointment.appointment_time)} (${appointment.duration} min)</p>
-                ${appointment.notes ? `<p class="appointment-notes">${escapeHtml(appointment.notes)}</p>` : ''}
+            <div class="appointment-details">
+                <h4>${escapeHtml(appointment.patient_name)}</h4>
+                <p>${appointment.duration} minutos</p>
+                ${appointment.amount ? `<span class="amount">R$ ${parseFloat(appointment.amount).toFixed(2)}</span>` : ''}
             </div>
-            <div class="appointment-meta">
-                <span class="status ${appointment.status}">${getStatusLabel(appointment.status)}</span>
-            </div>
-            <div class="appointment-actions">
-                <button class="btn btn-outline btn-sm" onclick="editAppointment(${appointment.id})">
-                    Editar
-                </button>
-                ${appointment.status === 'scheduled' ? `
-                    <button class="btn btn-secondary btn-sm" onclick="completeAppointment(${appointment.id})">
-                        Concluir
+            <div class="appointment-status">
+                <span class="status-badge ${appointment.status}">${getStatusLabel(appointment.status)}</span>
+                <div class="appointment-menu">
+                    <button class="btn-icon" onclick="toggleAppointmentMenu(event, ${appointment.id})">
+                        <i class="fas fa-ellipsis-v"></i>
                     </button>
-                ` : ''}
+                    <div class="appointment-dropdown" id="menu-${appointment.id}">
+                        <button onclick="editAppointment(${appointment.id})">
+                            <i class="fas fa-edit"></i> Editar
+                        </button>
+                        ${appointment.status === 'scheduled' ? `
+                            <button onclick="openRescheduleModal(${appointment.id})">
+                                <i class="fas fa-calendar-alt"></i> Reagendar
+                            </button>
+                            <button onclick="completeAppointment(${appointment.id})">
+                                <i class="fas fa-check"></i> Concluir
+                            </button>
+                        ` : ''}
+                        <button onclick="deleteAppointment(${appointment.id})" class="text-danger">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     `).join('');
 }
 
-function updateDayStats(appointments) {
-    const total = appointments.length;
-    const scheduled = appointments.filter(apt => apt.status === 'scheduled').length;
-    const completed = appointments.filter(apt => apt.status === 'completed').length;
+function toggleAppointmentMenu(event, appointmentId) {
+    event.stopPropagation();
     
-    const totalEl = document.getElementById('day-total');
-    const scheduledEl = document.getElementById('day-scheduled');
-    const completedEl = document.getElementById('day-completed');
+    // Fechar outros menus
+    document.querySelectorAll('.appointment-dropdown').forEach(menu => {
+        if (menu.id !== `menu-${appointmentId}`) {
+            menu.classList.remove('active');
+        }
+    });
     
-    if (totalEl) totalEl.textContent = total;
-    if (scheduledEl) scheduledEl.textContent = scheduled;
-    if (completedEl) completedEl.textContent = completed;
+    const menu = document.getElementById(`menu-${appointmentId}`);
+    if (menu) {
+        menu.classList.toggle('active');
+    }
 }
 
-function openAppointmentModal(appointmentId = null) {
+// Fechar menu ao clicar fora
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.appointment-menu')) {
+        document.querySelectorAll('.appointment-dropdown').forEach(menu => {
+            menu.classList.remove('active');
+        });
+    }
+});
+
+function changeMonth(offset) {
+    currentMonth += offset;
+    
+    if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+    } else if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+    }
+    
+    console.log('📅 Mudando para:', currentMonth + 1, currentYear);
+    loadCalendar();
+}
+
+function goToToday() {
+    const today = new Date();
+    currentMonth = today.getMonth();
+    currentYear = today.getFullYear();
+    selectedDate = today;
+    console.log('📅 Indo para hoje:', currentMonth + 1, currentYear);
+    loadCalendar();
+}
+
+function updateMonthYearDisplay() {
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    const display = document.getElementById('current-month-year');
+    if (display) {
+        display.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+    }
+}
+
+function openAppointmentModalForDate() {
+    console.log('📅 Abrindo modal para data:', selectedDate);
+    
     const modal = document.getElementById('appointment-modal');
     const form = document.getElementById('appointment-form');
     const title = document.getElementById('appointment-modal-title');
     
-    if (appointmentId) {
-        title.textContent = 'Editar Consulta';
-        
-        fetch(`api/appointments.php?id=${appointmentId}`)
-            .then(response => response.json())
-            .then(appointment => {
-                document.getElementById('appointment_patient_select').value = appointment.patient_id;
-                document.getElementById('appointment_date').value = appointment.appointment_date;
-                document.getElementById('appointment_time').value = appointment.appointment_time;
-                document.getElementById('appointment_duration').value = appointment.duration;
-                document.getElementById('appointment_amount').value = appointment.amount;
-                document.getElementById('appointment_notes').value = appointment.notes || '';
-                form.dataset.appointmentId = appointmentId;
-            });
-    } else {
-        title.textContent = 'Nova Consulta';
-        form.reset();
-        delete form.dataset.appointmentId;
-        document.getElementById('appointment_date').value = formatDateForAPI(currentDate);
+    if (!modal || !form || !title) {
+        console.error('❌ Elementos do modal não encontrados');
+        return;
     }
+    
+    title.textContent = 'Nova Consulta';
+    form.reset();
+    delete form.dataset.appointmentId;
+    document.getElementById('appointment_date').value = formatDateForAPI(selectedDate);
     
     fetch('api/patients.php')
         .then(response => response.json())
         .then(patients => {
             const select = document.getElementById('appointment_patient_select');
-            const currentValue = select.value;
+            if (!select) {
+                console.error('❌ Select de pacientes não encontrado');
+                return;
+            }
+            
             select.innerHTML = '<option value="">Selecione um paciente</option>';
             
             patients.forEach(patient => {
-                const option = document.createElement('option');
-                option.value = patient.id;
-                option.textContent = patient.name;
-                select.appendChild(option);
+                if (patient.status === 'active' || !patient.status) {
+                    const option = document.createElement('option');
+                    option.value = patient.id;
+                    option.textContent = patient.name;
+                    select.appendChild(option);
+                }
             });
             
-            if (currentValue) {
-                select.value = currentValue;
-            }
-            
             openModal('appointment-modal');
+        })
+        .catch(error => {
+            console.error('❌ Erro ao carregar pacientes:', error);
+            showToast('Erro ao carregar pacientes', 'error');
         });
 }
 
-function editAppointment(appointmentId) {
-    openAppointmentModal(appointmentId);
-}
-
-function saveAppointment() {
-    const form = document.getElementById('appointment-form');
-    const appointmentId = form.dataset.appointmentId;
-    const patientId = document.getElementById('appointment_patient_select').value;
-    const appointmentDate = document.getElementById('appointment_date').value;
-    const appointmentTime = document.getElementById('appointment_time').value;
+function deleteAppointment(appointmentId) {
+    console.log('🗑️ Deletar consulta:', appointmentId);
     
-    if (!patientId || !appointmentDate || !appointmentTime) {
-        showToast('Preencha todos os campos obrigatórios', 'error');
-        return;
+    if (confirm('Tem certeza que deseja cancelar esta consulta?')) {
+        fetch(`api/appointments.php?id=${appointmentId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Consulta cancelada com sucesso!', 'success');
+                loadCalendar();
+            } else {
+                showToast(data.message || 'Erro ao cancelar consulta', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro:', error);
+            showToast('Erro ao cancelar consulta', 'error');
+        });
     }
-    
-    const amount = document.getElementById('appointment_amount').value || 100;
-    
-    const data = {
-        patient_id: patientId,
-        appointment_date: appointmentDate,
-        appointment_time: appointmentTime,
-        duration: document.getElementById('appointment_duration').value,
-        amount: parseFloat(amount),
-        notes: document.getElementById('appointment_notes').value
-    };
-    
-    const url = appointmentId ? `api/appointments.php?id=${appointmentId}` : 'api/appointments.php';
-    const method = appointmentId ? 'PUT' : 'POST';
-    
-    fetch(url, {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            closeModal('appointment-modal');
-            loadCalendar();
-            showToast(appointmentId ? 'Consulta atualizada!' : 'Consulta agendada com sucesso!', 'success');
-        } else {
-            showToast(result.message || 'Erro ao salvar consulta', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('Erro ao salvar consulta', 'error');
-    });
 }
 
 function completeAppointment(appointmentId) {
+    console.log('✅ Concluir consulta:', appointmentId);
+    
     if (confirm('Marcar esta consulta como concluída?')) {
         fetch(`api/appointments.php?id=${appointmentId}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'completed' })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                loadCalendar();
                 showToast('Consulta marcada como concluída!', 'success');
+                loadCalendar();
             } else {
                 showToast(data.message || 'Erro ao atualizar consulta', 'error');
             }
+        })
+        .catch(error => {
+            console.error('❌ Erro:', error);
+            showToast('Erro ao atualizar consulta', 'error');
         });
-    }
-}
-
-function changeDate(offset) {
-    const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + offset);
-    currentDate = newDate;
-    loadCalendar();
-}
-
-function updateDateDisplay() {
-    const dateElement = document.getElementById('selected-date');
-    if (dateElement) {
-        const today = new Date();
-        const isToday = currentDate.toDateString() === today.toDateString();
-        
-        if (isToday) {
-            dateElement.textContent = 'Hoje';
-        } else {
-            dateElement.textContent = currentDate.toLocaleDateString('pt-BR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            });
-        }
     }
 }
 
@@ -1488,5 +1646,294 @@ function displaySessionsList(sessions) {
         </div>
     `).join('');
 }
+// =========================================
+// REAGENDAR CONSULTA - ADICIONAR NO FINAL
+// =========================================
 
-console.log('✅ App.js carregado com sucesso!');
+function openRescheduleModal(appointmentId) {
+    console.log('📅 Reagendar consulta:', appointmentId);
+    
+    fetch(`api/appointments.php?id=${appointmentId}`)
+        .then(response => response.json())
+        .then(appointment => {
+            // Buscar nome do paciente
+            return fetch(`api/patients.php?id=${appointment.patient_id}`)
+                .then(r => r.json())
+                .then(patient => {
+                    const info = `${patient.name} - ${formatDate(appointment.appointment_date)} às ${formatTime(appointment.appointment_time)}`;
+                    document.getElementById('original-appointment-info').textContent = info;
+                    
+                    document.getElementById('reschedule_appointment_id').value = appointmentId;
+                    document.getElementById('reschedule_date').value = appointment.appointment_date;
+                    document.getElementById('reschedule_time').value = appointment.appointment_time;
+                    document.getElementById('reschedule_reason').value = '';
+                    
+                    openModal('reschedule-modal');
+                });
+        })
+        .catch(error => {
+            console.error('❌ Erro:', error);
+            showToast('Erro ao carregar consulta', 'error');
+        });
+}
+
+function confirmReschedule() {
+    const appointmentId = document.getElementById('reschedule_appointment_id').value;
+    const newDate = document.getElementById('reschedule_date').value;
+    const newTime = document.getElementById('reschedule_time').value;
+    const reason = document.getElementById('reschedule_reason').value;
+    
+    if (!newDate || !newTime) {
+        showToast('Preencha data e horário', 'error');
+        return;
+    }
+    
+    const data = {
+        appointment_date: newDate,
+        appointment_time: newTime
+    };
+    
+    if (reason) {
+        data.notes = `Reagendado: ${reason}`;
+    }
+    
+    fetch(`api/appointments.php?id=${appointmentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            closeModal('reschedule-modal');
+            loadCalendar();
+            showToast('Consulta reagendada com sucesso!', 'success');
+        } else {
+            showToast(result.message || 'Erro ao reagendar', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Erro:', error);
+        showToast('Erro ao reagendar', 'error');
+    });
+}
+function openAppointmentModal(appointmentId = null) {
+    console.log('📅 openAppointmentModal chamado, ID:', appointmentId);
+    
+    const modal = document.getElementById('appointment-modal');
+    const form = document.getElementById('appointment-form');
+    const title = document.getElementById('appointment-modal-title');
+    
+    if (!modal || !form || !title) {
+        console.error('❌ Elementos do modal não encontrados');
+        return;
+    }
+    
+    if (appointmentId) {
+        // Editando consulta existente
+        title.textContent = 'Editar Consulta';
+        
+        fetch(`api/appointments.php?id=${appointmentId}`)
+            .then(response => response.json())
+            .then(appointment => {
+                console.log('📊 Dados da consulta:', appointment);
+                
+                document.getElementById('appointment_patient_select').value = appointment.patient_id;
+                document.getElementById('appointment_date').value = appointment.appointment_date;
+                document.getElementById('appointment_time').value = appointment.appointment_time;
+                document.getElementById('appointment_duration').value = appointment.duration;
+                document.getElementById('appointment_amount').value = appointment.amount || '';
+                document.getElementById('appointment_notes').value = appointment.notes || '';
+                form.dataset.appointmentId = appointmentId;
+                
+                // Carregar pacientes e abrir modal
+                loadPatientsForAppointment(appointment.patient_id);
+            })
+            .catch(error => {
+                console.error('❌ Erro ao carregar consulta:', error);
+                showToast('Erro ao carregar consulta', 'error');
+            });
+    } else {
+        // Nova consulta
+        title.textContent = 'Nova Consulta';
+        form.reset();
+        delete form.dataset.appointmentId;
+        
+        // Definir data como hoje se não estiver definida
+        const dateInput = document.getElementById('appointment_date');
+        if (!dateInput.value) {
+            dateInput.value = formatDateForAPI(new Date());
+        }
+        
+        // Carregar pacientes e abrir modal
+        loadPatientsForAppointment();
+    }
+}
+
+function loadPatientsForAppointment(selectedPatientId = null) {
+    fetch('api/patients.php')
+        .then(response => response.json())
+        .then(patients => {
+            const select = document.getElementById('appointment_patient_select');
+            if (!select) {
+                console.error('❌ Select de pacientes não encontrado');
+                return;
+            }
+            
+            select.innerHTML = '<option value="">Selecione um paciente</option>';
+            
+            patients.forEach(patient => {
+                // Mostrar apenas pacientes ativos ou sem status definido
+                if (patient.status === 'active' || !patient.status) {
+                    const option = document.createElement('option');
+                    option.value = patient.id;
+                    option.textContent = patient.name;
+                    select.appendChild(option);
+                }
+            });
+            
+            // Selecionar paciente se fornecido
+            if (selectedPatientId) {
+                select.value = selectedPatientId;
+            }
+            
+            // Abrir modal
+            openModal('appointment-modal');
+        })
+        .catch(error => {
+            console.error('❌ Erro ao carregar pacientes:', error);
+            showToast('Erro ao carregar pacientes', 'error');
+        });
+}
+
+function openAppointmentModalForDate() {
+    console.log('📅 Abrindo modal para data selecionada:', selectedDate);
+    
+    const form = document.getElementById('appointment-form');
+    const title = document.getElementById('appointment-modal-title');
+    
+    if (!form || !title) {
+        console.error('❌ Elementos do modal não encontrados');
+        showToast('Erro ao abrir modal de agendamento', 'error');
+        return;
+    }
+    
+    // Resetar formulário
+    title.textContent = 'Nova Consulta';
+    form.reset();
+    delete form.dataset.appointmentId;
+    
+    // Definir data selecionada
+    const dateInput = document.getElementById('appointment_date');
+    if (dateInput) {
+        dateInput.value = formatDateForAPI(selectedDate);
+        console.log('✅ Data definida:', dateInput.value);
+    }
+    
+    // Carregar pacientes e abrir modal
+    loadPatientsForAppointment();
+}
+function saveAppointment() {
+    console.log('💾 Salvando consulta...');
+    
+    const form = document.getElementById('appointment-form');
+    if (!form) {
+        console.error('❌ Formulário não encontrado');
+        return;
+    }
+    
+    const appointmentId = form.dataset.appointmentId;
+    const patientId = document.getElementById('appointment_patient_select').value;
+    const appointmentDate = document.getElementById('appointment_date').value;
+    const appointmentTime = document.getElementById('appointment_time').value;
+    
+    console.log('📝 Dados:', {
+        appointmentId,
+        patientId,
+        appointmentDate,
+        appointmentTime
+    });
+    
+    // Validação
+    if (!patientId) {
+        showToast('Selecione um paciente', 'error');
+        return;
+    }
+    
+    if (!appointmentDate) {
+        showToast('Informe a data da consulta', 'error');
+        return;
+    }
+    
+    if (!appointmentTime) {
+        showToast('Informe o horário da consulta', 'error');
+        return;
+    }
+    
+    const duration = parseInt(document.getElementById('appointment_duration').value) || 50;
+    const amountInput = document.getElementById('appointment_amount').value;
+    const amount = amountInput ? parseFloat(amountInput) : 100;
+    const notes = document.getElementById('appointment_notes').value || '';
+    
+    const data = {
+        patient_id: patientId,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        duration: duration,
+        amount: amount,
+        notes: notes
+    };
+    
+    console.log('📤 Enviando:', data);
+    
+    const url = appointmentId ? `api/appointments.php?id=${appointmentId}` : 'api/appointments.php';
+    const method = appointmentId ? 'PUT' : 'POST';
+    
+    console.log(`🔄 ${method} para ${url}`);
+    
+    // Desabilitar botão para evitar cliques duplos
+    const saveBtn = document.getElementById('save-appointment-btn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+    }
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('📡 Status da resposta:', response.status);
+        return response.json();
+    })
+    .then(result => {
+        console.log('📊 Resultado:', result);
+        
+        if (result.success) {
+            closeModal('appointment-modal');
+            
+            // Recarregar calendário
+            loadCalendar();
+            
+            const message = appointmentId ? 'Consulta atualizada com sucesso!' : 'Consulta agendada com sucesso!';
+            showToast(message, 'success');
+        } else {
+            showToast(result.message || 'Erro ao salvar consulta', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Erro:', error);
+        showToast('Erro ao salvar consulta', 'error');
+    })
+    .finally(() => {
+        // Reabilitar botão
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-calendar-plus"></i> Agendar';
+        }
+    });
+}
+sconsole.log('✅ App.js carregado com sucesso!');

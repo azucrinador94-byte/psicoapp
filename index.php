@@ -30,7 +30,9 @@ $recent_patients = $patient->read($_SESSION['user_id']);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PsicoApp - Gestão para Psicólogos Autônomos</title>
     <meta name="description" content="Sistema completo de gestão para psicólogos autônomos. Gerencie pacientes, agenda e consultas de forma simples e intuitiva.">
-    
+    <!-- Estilos -->
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/calendar.css">
     <!-- CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
@@ -314,78 +316,91 @@ $recent_patients = $patient->read($_SESSION['user_id']);
                 </div>
             </div>
             
-            <!-- Calendar Tab -->
-            <div id="calendar-tab" class="tab-content">
-                <div class="page-header">
-                    <div class="page-title">
-                        <h1>Agenda</h1>
-                        <p>Gerencie seus agendamentos</p>
+           <!-- Calendar Tab -->
+<div id="calendar-tab" class="tab-content">
+    <div class="page-header">
+        <h1><i class="fas fa-calendar-alt"></i> Agenda</h1>
+    </div>
+
+    <div class="calendar-wrapper">
+        <!-- Cabeçalho do Calendário -->
+        <div class="calendar-header-bar">
+            <div class="calendar-navigation">
+                <button class="btn btn-outline" onclick="changeMonth(-1)" aria-label="Mês anterior">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h2 id="current-month-year">Outubro 2025</h2>
+                <button class="btn btn-outline" onclick="changeMonth(1)" aria-label="Próximo mês">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="calendar-header-actions">
+                <button class="btn btn-secondary" onclick="goToToday()">
+                    <i class="fas fa-calendar-day"></i> Hoje
+                </button>
+                <button class="btn btn-primary" onclick="openAppointmentModalForDate()">
+                    <i class="fas fa-plus"></i> Nova Consulta
+                </button>
+            </div>
+        </div>
+
+        <div class="calendar-layout">
+            <!-- Grid do Calendário -->
+            <div class="calendar-main">
+                <div class="calendar-grid-container">
+                    <!-- Dias da Semana -->
+                    <div class="calendar-weekdays">
+                        <div class="weekday-cell">DOM</div>
+                        <div class="weekday-cell">SEG</div>
+                        <div class="weekday-cell">TER</div>
+                        <div class="weekday-cell">QUA</div>
+                        <div class="weekday-cell">QUI</div>
+                        <div class="weekday-cell">SEX</div>
+                        <div class="weekday-cell">SÁB</div>
                     </div>
-                    <button class="btn btn-primary" onclick="openAppointmentModal()">
-                        <i class="fas fa-plus"></i> Nova Consulta
-                    </button>
+
+                    <!-- Dias do Mês -->
+                    <div id="calendar-days" class="calendar-days-grid">
+                        <!-- Preenchido via JavaScript -->
+                    </div>
                 </div>
-                
-                <div class="calendar-grid">
-                    <!-- Calendar content -->
-                    <div class="card large">
-                        <div class="card-header">
-                            <h2><i class="fas fa-calendar"></i> <span id="selected-date">Hoje</span></h2>
+
+                <!-- Legenda -->
+                <div class="calendar-footer">
+                    <div class="calendar-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #6366f1;"></span>
+                            <span>Agendadas</span>
                         </div>
-                        <div class="card-content">
-                            <!-- Date navigation -->
-                            <div class="date-navigation">
-                                <button class="btn btn-sm" onclick="changeDate(-1)">Ontem</button>
-                                <button class="btn btn-primary btn-sm" onclick="changeDate(0)">Hoje</button>
-                                <button class="btn btn-sm" onclick="changeDate(1)">Amanhã</button>
-                                <button class="btn btn-sm" onclick="changeDate(2)">+2 dias</button>
-                                <button class="btn btn-sm" onclick="changeDate(3)">+3 dias</button>
-                            </div>
-                            
-                            <!-- Appointments for selected date -->
-                            <div id="daily-appointments">
-                                <!-- Content loaded by JavaScript -->
-                            </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #10b981;"></span>
+                            <span>Concluídas</span>
                         </div>
-                    </div>
-                    
-                    <!-- Sidebar with stats -->
-                    <div class="calendar-sidebar">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3>Resumo do Dia</h3>
-                            </div>
-                            <div class="card-content">
-                                <div class="day-stats">
-                                    <div class="stat-item">
-                                        <span class="label">Total de consultas</span>
-                                        <span class="value" id="day-total">0</span>
-                                    </div>
-                                    <div class="stat-item">
-                                        <span class="label">Agendadas</span>
-                                        <span class="value scheduled" id="day-scheduled">0</span>
-                                    </div>
-                                    <div class="stat-item">
-                                        <span class="label">Concluídas</span>
-                                        <span class="value completed" id="day-completed">0</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="card">
-                            <div class="card-header">
-                                <h3>Próximas Consultas</h3>
-                            </div>
-                            <div class="card-content">
-                                <div id="upcoming-list">
-                                    <!-- Content loaded by JavaScript -->
-                                </div>
-                            </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #ef4444;"></span>
+                            <span>Hoje</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Sidebar com Consultas do Dia -->
+            <div class="calendar-sidebar-panel">
+                <div class="sidebar-header-panel">
+                    <h3 id="selected-day-title">Selecione um dia</h3>
+                    <span id="selected-day-count" class="count-badge">0</span>
+                </div>
+                
+                <div id="daily-appointments-list" class="appointments-list-container">
+                    <div class="empty-state-calendar">
+                        <i class="fas fa-calendar-check"></i>
+                        <p>Clique em um dia para ver as consultas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
             
             <!-- Reports Tab -->
             <div id="reports-tab" class="tab-content">
